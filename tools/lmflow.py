@@ -15,10 +15,9 @@ class BasisFunctionKernel(gpflow.kernels.Kernel):
     Use Woodbury instead!
     """
 
-    def __init__(self, variance=1.0, lengthscales=1.0, **kwargs):
-        super().__init__(variance, **kwargs)
+    def __init__(self, variance=1.0, **kwargs):
+        super().__init__(**kwargs)
         self.variance = gpflow.Parameter(variance, transform=gpflow.utilities.positive())
-        self.lengthscales = gpflow.Parameter(lengthscales, transform=gpflow.utilities.positive())
 
     @abc.abstractmethod
     def Phi(self, X):
@@ -27,25 +26,31 @@ class BasisFunctionKernel(gpflow.kernels.Kernel):
     def K(self, X, X2=None):
         Phi = self.Phi(X)
         if X2 is None:
-            return self.variance * tf.matmul(Phi, Phi, transpose_b=True)
+            return tf.matmul(Phi, Phi, transpose_b=True)
         else:
-            return self.variance * tf.matmul(Phi, self.Phi(X2), transpose_b=True)
+            return tf.matmul(Phi, self.Phi(X2), transpose_b=True)
 
     def K_diag(self, X):
-        return self.variance * tf.reduce_sum(self.Phi(X) ** 2.0, axis=1)
+        return tf.reduce_sum(self.Phi(X) ** 2.0, axis=1)
 
 
-class PolynomialBasisKernel(BasisFunctionKernel):
+class InputScaledBasisFunctionKernel(BasisFunctionKernel):
+    def __init__(self, variance=1.0, lengthscales=1.0, **kwargs):
+        super().__init__(variance, **kwargs)
+        self.lengthscales = gpflow.Parameter(lengthscales, transform=gpflow.utilities.positive())
+
+
+class PolynomialBasisKernel(InputScaledBasisFunctionKernel):
     def __init__(self, degree, variance=1.0, lengthscales=1.0, **kwargs):
         super().__init__(variance, lengthscales, **kwargs)
         self.degree = degree
 
     def Phi(self, X):
         X = X / self.lengthscales
-        return tf.concat([X ** tf.cast(i, X.dtype) for i in range(0, self.degree + 1)], axis=1)
+        return tf.concat([self.variance ** 0.5 * X ** tf.cast(i, X.dtype) for i in range(0, self.degree + 1)], axis=1)
 
 
-class SqExpBasisFunctionKernel(BasisFunctionKernel):
+class SqExpBasisFunctionKernel(InputScaledBasisFunctionKernel):
     def __init__(self, number_of_bases=10, range=(-1, 1), variance=1.0, lengthscales=1.0, **kwargs):
         super().__init__(variance, lengthscales, **kwargs)
         self.centres = tf.constant(np.linspace(range[0], range[1], number_of_bases)[:, None])
@@ -53,6 +58,18 @@ class SqExpBasisFunctionKernel(BasisFunctionKernel):
     def Phi(self, X):
         sqdist = square_distance(X, self.centres) / self.lengthscales ** 2.0
         return self.variance ** 0.5 * tf.exp(-sqdist)
+
+
+class SinusoidalBasisKernel(InputScaledBasisFunctionKernel):
+    def __init__(self, number_of_bases=10, variance=1.0, lengthscales=1.0, **kwargs):
+        super().__init__(variance, lengthscales, **kwargs)
+        self.frequencies = gpflow.Parameter(np.random.randn(number_of_bases))
+        self.phases = gpflow.Parameter(np.random.rand(number_of_bases) * np.pi * 2)
+
+    def Phi(self, X):
+        X = X / self.lengthscales
+        return self.variance ** 0.5 * tf.math.sin(X * self.frequencies + self.phases)
+        # return tf.math.sin(X)
 
 
 class LMR(gpflow.models.GPR):

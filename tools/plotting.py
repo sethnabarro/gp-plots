@@ -5,22 +5,29 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_1d_model(m, plot_mean=True, plot_var="y", plot_samples=False, plot_samples_z=None, ax=None):
+def plot_1d_model(m, plot_mean=True, plot_var="y", plot_samples=False, plot_samples_z=None, ax=None, pX=None):
     if ax is None:
         ax = plt.gca()
-
     X, Y = [d.numpy() for d in m.data]
 
-    data_inducingpts = np.vstack((X, m.feature.Z.value)) if hasattr(m, "feature") else X
-    pX = np.linspace(np.min(data_inducingpts) - 2.0, np.max(data_inducingpts) + 2.0, 1800)[:, None]
+    if pX is None:
+        data_inducingpts = np.vstack((X, m.feature.Z.value)) if hasattr(m, "feature") else X
+        range = np.max(data_inducingpts) - np.min(data_inducingpts)
+        pX = np.linspace(np.min(data_inducingpts) - range / 3, np.max(data_inducingpts) + range / 3, 1800)[:, None]
+
+    #
+    # Predicting
     predict_stats = m.predict_y(pX) if plot_var == "y" else m.predict_f(pX)
     pY, pYv = [d.numpy() for d in predict_stats]
+
+    #
+    # Plotting
     ax.plot(X, Y, 'x', color='C1')
     if plot_mean:
         line, = ax.plot(pX, pY, lw=1.5, label="mean")
     if plot_var is not False:
         ax.fill_between(pX.flatten(), (pY - 2 * pYv ** 0.5).flatten(), (pY + 2 * pYv ** 0.5).flatten(), alpha=0.3,
-                        label="2$\sigma$ func" if plot_var=="f" else "2$\sigma$ data")
+                        label="2$\sigma$ func" if plot_var == "f" else "2$\sigma$ data")
     if plot_samples:
         if plot_samples_z is None:
             plot_samples_z = np.random.randn(len(pX), 10)

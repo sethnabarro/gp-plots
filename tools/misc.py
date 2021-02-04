@@ -11,5 +11,5 @@ def sample_prior(model_or_kernel, pX, num_samples=10):
         samples = L @ np.random.randn(len(L), num_samples)
     else:
         Phi = k.Phi(pX)
-        samples = Phi @ np.random.randn(Phi.shape[1], num_samples) * k.variance ** 0.5
+        samples = Phi @ np.random.randn(Phi.shape[1], num_samples)
     return samples
