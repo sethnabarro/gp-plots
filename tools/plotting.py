@@ -5,13 +5,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_1d_model(m, plot_mean=True, plot_var="y", plot_samples=False, plot_samples_z=None, ax=None, pX=None):
+def plot_1d_model(m, data=None, plot_mean=True, plot_var="y", plot_samples=False, plot_samples_z=None, ax=None, pX=None):
     if ax is None:
         ax = plt.gca()
-    X, Y = [d.numpy() for d in m.data]
+    if data is None:
+        if hasattr(m, 'data'):
+            X, Y = [d.numpy() for d in m.data]
+        else:
+            X, Y = None, None
+    else:
+        X, Y = data[0], data[1]
 
     if pX is None:
-        data_inducingpts = np.vstack((X, m.feature.Z.value)) if hasattr(m, "feature") else X
+        data_inducingpts = np.vstack((X, m.inducing_variable.Z.numpy())) if hasattr(m, "inducing_variable") else X
         range = np.max(data_inducingpts) - np.min(data_inducingpts)
         pX = np.linspace(np.min(data_inducingpts) - range / 3, np.max(data_inducingpts) + range / 3, 1800)[:, None]
 
@@ -22,9 +28,10 @@ def plot_1d_model(m, plot_mean=True, plot_var="y", plot_samples=False, plot_samp
 
     #
     # Plotting
-    ax.plot(X, Y, 'x', color='C1')
     if plot_mean:
         line, = ax.plot(pX, pY, lw=1.5, label="mean")
+    if X is not None:
+        ax.plot(X, Y, 'x', color='C1')
     if plot_var is not False:
         ax.fill_between(pX.flatten(), (pY - 2 * pYv ** 0.5).flatten(), (pY + 2 * pYv ** 0.5).flatten(), alpha=0.3,
                         label="2$\sigma$ func" if plot_var == "f" else "2$\sigma$ data")
@@ -46,8 +53,13 @@ def plot_1d_model(m, plot_mean=True, plot_var="y", plot_samples=False, plot_samp
 
     # plt.plot(pX, pY + 2 * pYv ** 0.5, col, lw=1.5)
     # plt.plot(pX, pY - 2 * pYv ** 0.5, col, lw=1.5)
-    if hasattr(m, 'feature'):
-        ax.plot(m.feature.Z.value, np.zeros(m.feature.Z.value.shape), 'k|', mew=2)
+    if hasattr(m, 'inducing_variable'):
+        # ax.plot(m.inducing_variable.Z.numpy(), np.zeros(m.inducing_variable.Z.numpy().shape), 'k|', mew=2)
+        if hasattr(m, 'q_mu'):
+            ax.plot(m.inducing_variable.Z.numpy(), m.q_mu.numpy(), 'k|', mew=2)
+        else:
+            q_mu, _ = m.predict_f(m.inducing_variable.Z.numpy())
+            ax.plot(m.inducing_variable.Z.numpy(), q_mu, 'k|', mew=2)
 
 
 def model_training_gif(m, hist, lml_plot=True, plot_var=True, axes_setup=lambda ax: None, **kwargs):
